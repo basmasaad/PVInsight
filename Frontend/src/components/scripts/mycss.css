@@ -1,0 +1,48 @@
+/* statistics.css */
+
+.statistics-container {
+    width: 20%;
+    height: 30%;
+    margin-top: 20px;
+    margin-left: 20px;
+    padding: 20px;
+    border: 1px #38b2ac;
+    border-radius: 10px;
+    float: left;
+}
+
+.statistics-container select {
+    margin-right: 10px;
+}
+
+.statistics-container table {
+    width: 50%;
+}
+
+.statistics-container th,
+.statistics-container td {
+    padding: 8px 16px;
+    border: 1px solid #e2e8f0;
+}
+
+
+.data-description {
+    width: 40%;
+    margin-top: 20px;
+    margin-left: 20px;
+    padding: 20px;
+    border: 1px #38b2ac;
+    border-radius: 10px;
+    float: left;
+    margin-left: 20px; /* Add left margin to separate from StatisticsTable */
+}
+
+.data-description table {
+    width: 100%;
+}
+
+.data-description th,
+.data-description td {
+    padding: 8px 16px;
+    border: 1px solid #e2e8f0;
+}
