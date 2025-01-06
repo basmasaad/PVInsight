@@ -20,9 +20,9 @@ const OutliersContainer = () => {
         <div className="flex-grow "style={{ minHeight: '300px', height: '200%' }}>
             <ChartWrapper />
             </div>
-            <div className="flex-grow">
+            {/* <div className="flex-grow">
             <MultivariateOutliers />
-            </div>
+            </div> */}
         </div>
         </div>
     );

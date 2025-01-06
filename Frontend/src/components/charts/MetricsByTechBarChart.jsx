@@ -66,7 +66,7 @@ const MetricsByTech = () => {
                         stackNMAE,
                         stackRMSE,
                         stackNRMSE,
-                        stackMAPE,
+                       
                     ]}
                     layout={{
                         autosize: true,

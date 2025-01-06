@@ -4,7 +4,17 @@ from pymongo import MongoClient
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
+import tensorflow as tf
+import numpy as np 
+import random
+import os
 
+from sklearn.metrics import mean_absolute_error
+def reset_random_seeds():
+    os.environ['PYTHONHASHSEED']=str(1)
+    tf.random.set_seed(1)
+    np.random.seed(1)
+    random.seed(1)
 # Connect to MongoDB
 client = MongoClient('mongodb://localhost:27017/')
 db = client['pfa']
@@ -73,7 +83,9 @@ def get_metrics():
     
     # Calculate absolute errors
     df['Absolute_Error'] = np.abs(df['Active_Power'] - df['Active_Power_pred'])
-    
+    print('the mean abs error is: ',df['Absolute_Error'].mean())
+    df['Squared_Error'] =(df['Active_Power'] - df['Active_Power_pred']) ** 2
+    print('the mean squared error is: ',df['Squared_Error'].mean())
     # Aggregate on a daily basis
     if group=='D':
         column_g='Day'
@@ -89,14 +101,15 @@ def get_metrics():
     daily_aggregated = df.groupby(column_g).agg({
         'Active_Power': 'mean',
         'Active_Power_pred': 'mean',
-        'Absolute_Error': 'mean'
+        'Absolute_Error': 'mean',
+        'Squared_Error':'mean'
     }).reset_index()
     
     # Calculate additional metrics
-    daily_aggregated['MAE'] = mean_absolute_error(daily_aggregated['Active_Power'], daily_aggregated['Active_Power_pred'])
-    daily_aggregated['RMSE'] = np.sqrt(mean_squared_error(daily_aggregated['Active_Power'], daily_aggregated['Active_Power_pred']))
-    daily_aggregated['NMAE'] = daily_aggregated['MAE'] / daily_aggregated['Active_Power'].mean()
-    daily_aggregated['NRMSE'] = daily_aggregated['RMSE'] / daily_aggregated['Active_Power'].mean()
+    daily_aggregated['MAE'] =daily_aggregated['Absolute_Error']
+    daily_aggregated['RMSE'] = np.sqrt(daily_aggregated['Squared_Error'])
+    daily_aggregated['NMAE'] = daily_aggregated['MAE'] *100/ daily_aggregated['Active_Power'].mean()
+    daily_aggregated['NRMSE'] = daily_aggregated['RMSE'] *100/ daily_aggregated['Active_Power'].mean()
     daily_aggregated['MAPE'] = (daily_aggregated['Absolute_Error'] / daily_aggregated['Active_Power']).mean() * 100
     
     # Prepare data for Plotly
@@ -116,7 +129,9 @@ def get_metrics():
 def get_metrics_by_tech():
     # Retrieve data from MongoDB
     
-    cursor = files_collection.find({}, {'_id': 0, 'username': 0})
+    test_predicted_files_collection = db['test_predicted_data']
+     # Retrieve data from MongoDB
+    cursor = test_predicted_files_collection.find({}, {'_id': 0})
 
     # Convert cursor to a DataFrame
     df = pd.DataFrame(list(cursor))
@@ -126,20 +141,27 @@ def get_metrics_by_tech():
         return jsonify({'error': 'Active_Power_pred column does not exist'})
 
     # Calculate absolute errors
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+    
+    # Calculate absolute errors
     df['Absolute_Error'] = np.abs(df['Active_Power'] - df['Active_Power_pred'])
+    print('the mean abs error is: ',df['Absolute_Error'].mean())
+    df['Squared_Error'] =(df['Active_Power'] - df['Active_Power_pred']) ** 2
+    print('the mean squared error is: ',df['Squared_Error'].mean())
 
     # Aggregate on a technology basis
     tech_aggregated = df.groupby('technology').agg({
         'Active_Power': 'mean',
         'Active_Power_pred': 'mean',
-        'Absolute_Error': 'mean'
+        'Absolute_Error': 'mean',
+        'Squared_Error':'mean'
     }).reset_index()
 
     # Calculate additional metrics
-    tech_aggregated['MAE'] = mean_absolute_error(tech_aggregated['Active_Power'], tech_aggregated['Active_Power_pred'])
-    tech_aggregated['RMSE'] = np.sqrt(mean_squared_error(tech_aggregated['Active_Power'], tech_aggregated['Active_Power_pred']))
-    tech_aggregated['NMAE'] = tech_aggregated['MAE'] / tech_aggregated['Active_Power'].mean()
-    tech_aggregated['NRMSE'] = tech_aggregated['RMSE'] / tech_aggregated['Active_Power'].mean()
+    tech_aggregated['MAE'] = tech_aggregated['Absolute_Error']
+    tech_aggregated['RMSE'] = np.sqrt(tech_aggregated['Squared_Error'])
+    tech_aggregated['NMAE'] = tech_aggregated['MAE'] *100/ tech_aggregated['Active_Power'].mean()
+    tech_aggregated['NRMSE'] = tech_aggregated['RMSE'] *100/ tech_aggregated['Active_Power'].mean()
     tech_aggregated['MAPE'] = (tech_aggregated['Absolute_Error'] / tech_aggregated['Active_Power']).mean() * 100
 
     # Prepare data for Plotly
@@ -157,7 +179,9 @@ def get_metrics_by_tech():
 @bp.route('/api/metrics/panel', methods=['GET'])
 def get_metrics_by_panel():
     # Retrieve data from MongoDB
-    cursor = files_collection.find({}, {'_id': 0, 'username': 0})
+    test_predicted_files_collection = db['test_predicted_data']
+     # Retrieve data from MongoDB
+    cursor = test_predicted_files_collection.find({}, {'_id': 0})
 
     # Convert cursor to a DataFrame
     df = pd.DataFrame(list(cursor))
@@ -167,20 +191,27 @@ def get_metrics_by_panel():
         return jsonify({'error': 'Active_Power_pred column does not exist'})
 
     # Calculate absolute errors
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+    
+    # Calculate absolute errors
     df['Absolute_Error'] = np.abs(df['Active_Power'] - df['Active_Power_pred'])
+    print('the mean abs error is: ',df['Absolute_Error'].mean())
+    df['Squared_Error'] =(df['Active_Power'] - df['Active_Power_pred']) ** 2
+    print('the mean squared error is: ',df['Squared_Error'].mean())
 
     # Aggregate on a version basis
     tech_aggregated = df.groupby('version').agg({
         'Active_Power': 'mean',
         'Active_Power_pred': 'mean',
-        'Absolute_Error': 'mean'
+        'Absolute_Error': 'mean',
+        'Squared_Error':'mean'
     }).reset_index()
 
     # Calculate additional metrics
-    tech_aggregated['MAE'] = mean_absolute_error(tech_aggregated['Active_Power'], tech_aggregated['Active_Power_pred'])
-    tech_aggregated['RMSE'] = np.sqrt(mean_squared_error(tech_aggregated['Active_Power'], tech_aggregated['Active_Power_pred']))
-    tech_aggregated['NMAE'] = tech_aggregated['MAE'] / tech_aggregated['Active_Power'].mean()
-    tech_aggregated['NRMSE'] = tech_aggregated['RMSE'] / tech_aggregated['Active_Power'].mean()
+    tech_aggregated['MAE'] = tech_aggregated['Absolute_Error']
+    tech_aggregated['RMSE'] = np.sqrt(tech_aggregated['Squared_Error'])
+    tech_aggregated['NMAE'] = tech_aggregated['MAE'] *100/ tech_aggregated['Active_Power'].mean()
+    tech_aggregated['NRMSE'] = tech_aggregated['RMSE'] *100/ tech_aggregated['Active_Power'].mean()
     tech_aggregated['MAPE'] = (tech_aggregated['Absolute_Error'] / tech_aggregated['Active_Power']).mean() * 100
 
     # Prepare data for Plotly

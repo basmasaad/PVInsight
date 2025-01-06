@@ -120,7 +120,7 @@ const MissingRowsTable = ({id}) => {
 
         // </div>
         <div id={id}>
-        <div className="p-4 border-1 border-dashed border-emerald-600 rounded-2xl h-96 ">
+        <div className="p-4 border-1 border-dashed border-emerald-600 rounded-2xl h-96 overflow-y-auto">
       <h2 className="text-xl font-bold mb-4 text-green-600">Missing Rows</h2>
       <div className="border-1 border-dashed border-emerald-600 mb-4"></div>
       <table className="min-w-full divide-y divide-gray-200">

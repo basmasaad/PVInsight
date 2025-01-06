@@ -3,7 +3,7 @@ import axios from 'axios';
 import Plot from 'react-plotly.js';
 
 const MetricsByTime = () => {
-    const [grouping, setGrouping] = useState('D');
+    const [grouping, setGrouping] = useState('M');
     const [stackMAE, setStackMAE] = useState({});
     const [stackNMAE, setStackNMAE] = useState({});
     const [stackRMSE, setStackRMSE] = useState({});
@@ -65,7 +65,7 @@ const MetricsByTime = () => {
                 stackNMAE,
                 stackRMSE,
                 stackNRMSE,
-                stackMAPE,
+                
             ]}
             layout={{
                 autosize: true,

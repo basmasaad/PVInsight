@@ -21,10 +21,9 @@ def get_outliers():
     # Retrieve data from MongoDB
     cursor = files_collection.find({}, {
         '_id': 0,
-        'Weather_Temperature_Celsius': 1,
-        'Weather_Relative_Humidity': 1,
-        'Global_Horizontal_Radiation': 1,
-        'Weather_Daily_Rainfall': 1
+        'Weather_Temperature_Celsius_y': 1,
+        'Weather_Relative_Humidity_y': 1,
+        'Global_Horizontal_Radiation_y': 1
         })
 
     # Convert cursor to a list of dictionaries
@@ -32,17 +31,15 @@ def get_outliers():
     
     # Initialize dictionary to hold statistical values and outliers
     statistics = {
-        "Weather_Temperature_Celsius": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []},
-        "Weather_Relative_Humidity": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []},
-        "Global_Horizontal_Radiation": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []},
-        "Weather_Daily_Rainfall": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []}
+        "Weather_Temperature_Celsius_y": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []},
+        "Weather_Relative_Humidity_y": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []},
+        "Global_Horizontal_Radiation_y": {"min": None, "q1": None, "median": None, "q3": None, "max": None, "outliers": []}
     }
 
     fields_to_retrieve = [
-        'Weather_Temperature_Celsius',
-        'Weather_Relative_Humidity',
-        'Global_Horizontal_Radiation',
-        'Weather_Daily_Rainfall'
+        'Weather_Temperature_Celsius_y',
+        'Weather_Relative_Humidity_y',
+        'Global_Horizontal_Radiation_y'
     ]
 
     # Extract values for each field and calculate statistics
@@ -170,12 +167,16 @@ def process_NaNvalues_test():
         print(error_traceback)
         return jsonify({'error': error_message, 'traceback': error_traceback}), 500 
 def process_model(DATA):
-    my_dict_tech={'PSI':5,'MSI':0,'CDTE':2,'HIT':4,'CPV':7,'ASI':1,'CIGS':3}
+    my_dict_tech={'PSI':5,'mSI':0,'CDTE':2,'HIT':4,'CPV':7,'ASI':1,'CIGS':3}
     my_dict_support={'F':0,'T':1}
     my_dict_track={'S':1,'D':2,0:0}
-    DATA['technology']=[my_dict_tech[c] for c in DATA['technology']]
-    DATA['support']=[my_dict_support[c] for c in DATA['support']]
-    DATA['track']=[my_dict_track[c] for c in DATA['track']]
+    if 'technology' in DATA.columns:
+        DATA['technology']=[my_dict_tech[c] for c in DATA['technology']]
+    if 'support' in DATA.columns:
+        DATA['support']=[my_dict_support[c] for c in DATA['support']]
+    if 'track' in DATA.columns:
+        DATA['track']=[my_dict_track[c] for c in DATA['track']]
+    print('Nan values processed in test')
     return DATA
 
 @bp.route('/process/nanvalues', methods=['POST'])
@@ -270,11 +271,10 @@ def get_statistics():
     cursor = files_collection.find({}, {
         '_id': 0,
         'username': 0,
-        'manuf': 0,
+      
         'technology': 0,
         'Timestamp': 0,
-        'support': 0,
-        'track': 0,
+        
         })
 
     # Convert cursor to a list of dictionaries
@@ -284,12 +284,11 @@ def get_statistics():
     statistics = {}
 
     fields_to_retrieve = [
-        'Weather_Temperature_Celsius',
-        'Weather_Relative_Humidity',
-        'Global_Horizontal_Radiation',
-        'Weather_Daily_Rainfall',
+        'Weather_Temperature_Celsius_y',
+        'Weather_Relative_Humidity_y',
+        'Global_Horizontal_Radiation_y',
         'Active_Power',
-        'Diffuse_Horizontal_Radiation',
+        
     ]
 
     # Extract all numeric fields
@@ -466,7 +465,7 @@ def detect_missing_rows():
     df = pd.DataFrame(list(cursor))
     
     # Perform missing rows detection
-    missing_rows = detect_missing_rows(df)
+    missing_rows = detect_missing_rows_funct(df)
 
     # Convert DataFrame to JSON and return
     return missing_rows.to_json(orient='records')
@@ -474,21 +473,39 @@ def detect_missing_rows():
 
 def create_datetime_index(df):
     # Combine Year, Month, Day, Hour, and Minute columns into a single datetime column
+    print('columns are: ',df.columns)
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='%Y-%m-%d %H:%M:%S')
     # Set the new datetime column as the index
     df.set_index('Timestamp', inplace=True)
     return df
 
-def detect_missing_rows(df):
+def detect_missing_rows_funct(df):
+    print('hello missing_rows')
     df = create_datetime_index(df)
     all_missing_rows = pd.DataFrame(columns=['Year', 'Month', 'Day', 'Hour', 'Minute', 'version'])
-    for vr in (df['version'].unique()):
+    sunrise_hour = 6
+    sunset_hour = 7
+    for vr in df['version'].unique():
+        print('version: ', vr)
         df_ver = df[df['version'] == vr]
+        
+        # Filter the data within the sunrise and sunset hours
+        df_ver = df_ver.between_time(f'{sunrise_hour}:00', f'{sunset_hour}:00')
+        
+        # Define the date range for the filtered data
         start_date = df_ver.index.min()
         end_date = df_ver.index.max()
-        full_date_range = pd.date_range(start=start_date, end=end_date, freq='5T')
+        print('start date:',start_date)
+        print('end date:',end_date)
+        full_date_range = pd.date_range(start=start_date, end=end_date, freq='H')
+        
+        # Create a full DataFrame with the full date range
         full_df = pd.DataFrame(index=full_date_range)
+        
+        # Merge with the filtered version of the data
         merged_df = full_df.merge(df_ver, left_index=True, right_index=True, how='left', indicator=True)
+        
+        # Find missing rows
         missing_rows = merged_df[merged_df['_merge'] == 'left_only']
         missing_rows['Year'] = missing_rows.index.year
         missing_rows['Month'] = missing_rows.index.month
@@ -496,7 +513,13 @@ def detect_missing_rows(df):
         missing_rows['Hour'] = missing_rows.index.hour
         missing_rows['Minute'] = missing_rows.index.minute
         missing_rows['version'] = vr
+
+      
+        
+        # Select relevant columns for the missing rows
         missing_rows = missing_rows[['Year', 'Month', 'Day', 'Hour', 'Minute', 'version']]
+        
+        # Concatenate all missing rows
         all_missing_rows = pd.concat([all_missing_rows, missing_rows])
     return all_missing_rows
 
@@ -1016,8 +1039,14 @@ def get_multioutliers_data():
         print('df.shape : ',df.shape)
         print('unique_v',df['version'].unique())
         # Perform your data manipulation
-        df['Active_Power'] = df['Active_Power'] * 1000 / df['area']
-        df['rating'] = df['rating'] * 1000 / df['area']
+        if 'area' in df.columns:
+            df['Active_Power'] = df['Active_Power'] * 1000 / df['area']
+            df['rating'] = df['rating'] * 1000 / df['area']
+        else:
+            df['area']=1
+            df['Active_Power'] = df['Active_Power'] * 1000
+            df['rating'] =  1000
+
         dfv=df[df['version']==version].reset_index(drop=True)
         print('dfv.shape : ',dfv.shape)
         # Detect outliers
@@ -1293,6 +1322,9 @@ def process_data_split():
         save_to_mongo(train_df, 'train_data')
         save_to_mongo(val_df, 'val_data')
         save_to_mongo(test_df, 'test_data')
+        print(train_df.shape)
+        print(val_df.shape)
+        print(test_df.shape)
         print('data is saved to mongo')
         # Write final DataFrame to CSV for debugging
         # df.to_csv('final_data.csv', sep=',', header=True, index=False)

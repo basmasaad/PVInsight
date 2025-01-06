@@ -70,6 +70,10 @@ const ModelEvaluation = () => {
                     <option value="">Select FH</option>
                     
                         <option key='5 minutes' value='5 minutes'>5 minutes</option>
+                        <option key='5 minutes' value='5 minutes'>15 minutes</option>
+                        <option key='5 minutes' value='5 minutes'>30 minutes</option>
+                        <option key='5 minutes' value='5 minutes'>1 Hour</option>
+                        <option key='5 minutes' value='5 minutes'>1 Day</option>
                     
                 </select>
                 <button onClick={handlePredict} className="hover:bg-blue-500 text-blue-700 font-semibold hover:text-white py-2 px-4 border-1 border-blue-500 hover:border-transparent rounded">

@@ -19,6 +19,7 @@ test_predicted_files_collection = db['test_predicted_data']
 
 @bp.route('/files', methods=['POST'])
 def get_files():
+    print('Uploading files')
     # Get the username from the request data
     data = request.get_json()
     username = data.get('username')
@@ -35,6 +36,7 @@ def get_files():
     
     # Convert DataFrame back to list of dictionaries
     files_data = df.to_dict(orient='records')
+    print('files uploaded')
 
     # Return the data in JSON format
     return jsonify(files_data)
@@ -211,14 +213,14 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint,EarlyStopping
 #from keras.models import load_model
 from tensorflow.keras.optimizers import Adam
-direct_path = '../SeqDB'
+direct_path = '../sq'
 
 # Create the directory if it doesn't exist
-if os.path.exists(direct_path):
+#if os.path.exists(direct_path):
     # Delete the directory and all its contents
-    shutil.rmtree(direct_path)
+    #shutil.rmtree(direct_path)
 # Recreate the directory
-os.makedirs(direct_path)
+#os.makedirs(direct_path)
 
 
 horiz='5m'
@@ -235,6 +237,9 @@ test_data = pd.DataFrame(list(test_cursor))
 
 @bp.route('/learningModels', methods=['POST'])
 def learn_model():
+    train_data = pd.DataFrame(list(train_cursor))
+    val_data = pd.DataFrame(list(val_cursor))
+    test_data = pd.DataFrame(list(test_cursor))
     print('model is selected')
     print('hello from model training')
     print('shape is : ',train_data.shape)
@@ -268,11 +273,12 @@ import joblib
 def Train_model(modelname,horizon,resolution):
     print('Train model')
     try:
-        model_selected=gridserach(4,modelname,horizon,resolution)
+        model_selected=gridserach(1400,modelname,horizon,resolution)
         if modelname=='SVM':
             joblib.dump(svr, 'Trained_svr_model.pkl')
         else:
             model_selected.save("../ModelDB/Trained_"+str(modelname)+".h5")
+            print('model_saved')
         return jsonify({'message': 'Model trained'}), 200
     except Exception as e:
         error_traceback = traceback.format_exc()
@@ -282,14 +288,21 @@ def Train_model(modelname,horizon,resolution):
 
 def gridserach(epochs,model_name,horizon,resolution):
     print('gridsearch')
+    train_cursor = train_processed_files_collection.find({}, {'_id': 0})
+    val_cursor = val_processed_files_collection.find({}, {'_id': 0})
+    test_cursor = test_processed_files_collection.find({}, {'_id': 0})
+    train_data = pd.DataFrame(list(train_cursor))
+    val_data = pd.DataFrame(list(val_cursor))
+    test_data = pd.DataFrame(list(test_cursor))
     if model_name!='SVM':
+        
         X_train,X_val,X_test,y_train,y_val,y_test=generate_seq(model_name,train_data,val_data,test_data,horizon,resolution)
         # neurones=[[4,2,1],[8,4,2],[32,16,8],[64,16,8],[64,32,16],[8,4,2,1],[16,8,4,2],[64,32,16,8],[64,64,16,8],[128,64,32,16]]
         # lrs=[0.001,0.01,0.0001,0.1]
         # epsilons=[1e-08,1e-07,1e-06,1e-04,1e-02]
         # bs=[64,32,16]
         #For test: 
-        neurones=[[4,2,1]]
+        neurones=[[4,2,2]]
         lrs=[0.001]
         epsilons=[1e-08]
         bs=[64]
@@ -344,7 +357,7 @@ def build_lstm_model(model_name,X_train,X_val,y_train,y_val,neurones,lr,epsilon,
     callbacks_list = [earlystopping]
     my_init = tf.keras.initializers.Constant(value=0.2)
     reset_random_seeds()
-    NUM_EPOCHS =epochs
+    NUM_EPOCHS =2000
     if model_name!= 'SVM':
         #Model Architecture
         model=tf.keras.Sequential()
@@ -475,7 +488,7 @@ def generate_seq(model_name,Train,Val,Test,horizon,resolution):
             y_val=np.delete(y_val, L_val, axis=0)
 
             for i in range(X_test.shape[0]):
-                if(np.array_equal(X_test[i], zero_seq)):
+                if((np.array_equal(X_test[i], zero_seq))&((X_test.shape[0]-i)>(Test.shape[0]))):
                     L_test.append(i)
             X_test=np.delete(X_test, L_test, axis=0)
             y_test=np.delete(y_test, L_test, axis=0)
@@ -523,8 +536,18 @@ import calendar
 def days_in_month(year, month):
     num_days = calendar.monthrange(year, month)[1]
     return list(range(1, num_days + 1))    
-def df_fill(df,colum,n,resolution): 
+def df_fill(df,colum,n,resolution,md): 
+    
     print('columns are: ',df.columns)
+    if (md=='test'):
+        print('test from df fill******************************************************')
+        COLS=['Month','Day','Hour','Minute','technology','year_of_installation','rating',
+                    'azimuth', 'tilt','track','roof','maintenance_startm', 'maintenance_starth',
+        'maintenance_endm', 'maintenance_endh','Global_Horizontal_Radiation_y',
+                    'Weather_Relative_Humidity_y','Weather_Daily_Rainfall_y'
+                    ,'Weather_Temperature_Celsius_y']
+    else:
+        COLS=df.columns
     array_5minutes=[]
     if resolution == '1y':
         df['VTime']=df['version'].astype(str)
@@ -539,12 +562,12 @@ def df_fill(df,colum,n,resolution):
                 data_yr=data_vr[data_vr['VTime']==month]
                 data_yr=data_yr.reset_index(drop=True)
                 if (data_yr.shape[0]!=0):
-                    my_data=data_month[colum]
+                    my_data=data_month[COLS]
                     array_5minutes.append(np.array(my_data.iloc[0]))
                 else:
-                    array_5minutes.append(np.array([0]*len(colum)))
+                    array_5minutes.append(np.array([0]*len(COLS)))
 
-    if resolution == '1m':
+    elif resolution == '1m':
         df['VTime']=df['version'].astype(str)+'-'+df['Year'].astype(str)
         for l in range(n):
             array_5minutes.append(np.array([0]*len(colum)))
@@ -555,17 +578,17 @@ def df_fill(df,colum,n,resolution):
                 data_month=data_yr[data_yr['VTime']==month]
                 data_month=data_month.reset_index(drop=True)
                 if (data_month.shape[0]!=0):
-                    my_data=data_month[colum]
+                    my_data=data_month[COLS]
                     array_5minutes.append(np.array(my_data.iloc[0]))
                 else:
-                    array_5minutes.append(np.array([0]*len(colum)))
+                    array_5minutes.append(np.array([0]*len(COLS)))
 
 
 
-    if resolution == '1d':
+    elif resolution == '1d':
         df['VTime']=df['version'].astype(str)+'-'+df['Year'].astype(str)+'-'+df['Month'].astype(str)
         for l in range(n):
-            array_5minutes.append(np.array([0]*len(colum)))
+            array_5minutes.append(np.array([0]*len(COLS)))
         for month in (df['VTime'].unique()):
             yr = int(month.split('-')[1])
             m= int(month.split('-')[2])
@@ -580,14 +603,16 @@ def df_fill(df,colum,n,resolution):
                     my_data=data_day[colum]
                     array_5minutes.append(np.array(my_data.iloc[0]))
                 else:
-                    array_5minutes.append(np.array([0]*len(colum)))
+                    array_5minutes.append(np.array([0]*len(COLS)))
 
-    else:    
+    else:   
+        print('cols from datafill are: ',COLS) 
+        print('cols from datafill are: ',COLS) 
         cnt=0
         print('this is the data lenght befor sequencing',df.shape)
         df['VTime']=df['version'].astype(str)+'-'+df['Year'].astype(str)+'-'+df['Month'].astype(str)+'-'+df['Day'].astype(str)
         print('the unique days are: ',len(df['VTime'].unique()))
-        print('the unique days are: ',df['VTime'].unique())
+       
         for day in (df['VTime'].unique()):
             for l in range(n):
                 array_5minutes.append(np.array([0]*len(colum)))
@@ -595,7 +620,7 @@ def df_fill(df,colum,n,resolution):
             dd=dd.reset_index(drop=True)
             hours=dd['Hour'].unique()
             hours=sorted(hours)
-            print('those are unique hours: ',hours)
+         
             for hr in range(hours[0],hours[-1]+1):
                 data_hour=dd[dd['Hour']==hr]
                 data_hour=data_hour.reset_index(drop=True)
@@ -619,19 +644,19 @@ def df_fill(df,colum,n,resolution):
                             dm=data_hour[data_hour['15minute']==minu]
                             dm=dm.reset_index(drop=True)
                             if (dm.shape[0]==1):
-                                my_data=dm[colum]
+                                my_data=dm[COLS]
                                 array_5minutes.append(np.array(my_data.iloc[0]))
                             else:
-                                array_5minutes.append(np.array([0]*len(colum)))
+                                array_5minutes.append(np.array([0]*len(COLS)))
                     else:
                         for s in range(0,9):
-                            array_5minutes.append(np.array([0]*len(colum)))
+                            array_5minutes.append(np.array([0]*len(COLS)))
                 if resolution =='1h':
                     if (data_hour.shape[0]!=0):
-                        my_data=data_hour[colum]
+                        my_data=data_hour[COLS]
                         array_5minutes.append(np.array(my_data.iloc[0]))
                     else:
-                        array_5minutes.append(np.array([0]*len(colum)))
+                        array_5minutes.append(np.array([0]*len(COLS)))
 
     print('the coun is: ',cnt)
     return np.array(array_5minutes)
@@ -641,18 +666,28 @@ def remove_target_column(columns, target_column):
     if target_column in columns:
         columns.remove(target_column)
     return columns
-def combin_seq(df, cols, n, resolution):
+def combin_seq(df, cols, n, resolution,md):
     # Assuming df_fill is a function defined elsewhere that fills missing data
-    my_array = df_fill(df, cols, n, resolution)
+    if(md=='test'):
+        COLS=['Month','Day','Hour','Minute','technology','year_of_installation','rating',
+                 'azimuth', 'tilt','track','roof','maintenance_startm', 'maintenance_starth',
+       'maintenance_endm', 'maintenance_endh','Global_Horizontal_Radiation_y',
+                 'Weather_Relative_Humidity_y','Weather_Daily_Rainfall_y'
+                 ,'Weather_Temperature_Celsius_y','Active_Power']
+        my_array = df_fill(df, COLS, n, resolution,'test')
+    else:
+        COLS=cols
+        my_array = df_fill(df, COLS, n, resolution,'train')
     
-    dt = pd.DataFrame(my_array, columns=cols)
-    print('columns of combin: ',cols)
+    dt = pd.DataFrame(my_array, columns=COLS)
+    print('columns of combin: ',COLS)
     dt = dt.reset_index(drop=True)
     the_array = []
     pmp_array = []
 
     # Find the index of the Active_Power column
     active_power_index = dt.columns.get_loc('Active_Power')
+    print('index_of_active_power: ',active_power_index)
     if 'VTime' in dt.columns:
         dt = dt.drop(columns=['VTime'])
     
@@ -667,25 +702,35 @@ def combin_seq(df, cols, n, resolution):
                 row_array = np.array(dt.iloc[j])
                 row_array = np.delete(row_array, [active_power_index],axis=0)
                 the_minute_array.append(row_array)
+               
             pmp_array.append(pmp)
             the_array.append(np.array(the_minute_array).astype(np.float32))
     
     return np.array(the_array), np.array(pmp_array)
 def make_data(Train1,Val1,Test1,n,resolution):
-    print(Train1.columns)
+    print('cols of train1: ',Train1.columns)
     columns=Train1.columns
     target_column = 'Active_Power'
     columns = list(columns)
     columns.remove(target_column)
     # cols_to_use = pd.Index(columns)
     cols_to_use=Train1.columns
+    
 
+    # Convert to list, remove, and convert back to Index
+    if 'Timestamp' in cols_to_use:
+     
+        cols_to_use.remove('Timestamp')
+        cols_to_use.remove('Date')
+        cols_to_use.remove('Sunrise')
+        cols_to_use.remove('Sunset')  # Remove the item
+       
     print('make_test_sequences')
-    X_test,y_test=combin_seq(Test1,cols_to_use,n,resolution)
+    X_test,y_test=combin_seq(Test1,cols_to_use,n,resolution,'train')
     print('make_val_sequences')
-    X_val,y_val=combin_seq(Val1,cols_to_use,n,resolution)
+    X_val,y_val=combin_seq(Val1,cols_to_use,n,resolution,'train')
     print('make_train_sequences')
-    X_train,y_train=combin_seq(Train1,cols_to_use,n,resolution)
+    X_train,y_train=combin_seq(Train1,cols_to_use,n,resolution,'train')
     return X_train,X_test,X_val,y_train,y_test,y_val
 
 
@@ -694,31 +739,45 @@ def make_data(Train1,Val1,Test1,n,resolution):
 mode_de_pred=None
 @bp.route('/model/predict',methods=['POST'])
 def model_predict():
+    reset_random_seeds()
     global mode_de_pred
     mode_de_pred='test'
     print('mode_de_pred: ',mode_de_pred)
     data = request.json
     model_name = data.get('model')
-    cursor = processed_files_collection.find({}, {'_id': 0})
+    cursor = files_collection.find({}, {'_id': 0})
     df = pd.DataFrame(list(cursor))
-    df['Active_Power']=df['Active_Power']*1000
-    df['rating']=df['rating']*1000
-    df['Active_Power']=df['Active_Power']/df['area']
-    df['rating']=df['rating']/df['area']
-    df['Time'] = pd.to_datetime(df['Timestamp'], format='%Y-%m-%d %H:%M:%S')
-    df['Day']=df['Time'].dt.day
-    df['Month']=df['Time'].dt.month
-    df['Hour']=df['Time'].dt.hour
-    df['Minute']=df['Time'].dt.minute
-    df['Year']=df['Time'].dt.year
-    # cols_to_use = pd.Index(columns)
-    cols_to_use=['Month','Day','Hour','Minute','technology','year_of_installation','rating',
+    cols_to_use=['Year','Month','Day','Hour','Minute','area','version','technology','year_of_installation','rating',
                  'azimuth', 'tilt','track','roof','maintenance_startm', 'maintenance_starth',
-       'maintenance_endm', 'maintenance_endh','Global_Horizontal_Radiation',
-                 'Weather_Relative_Humidity','Weather_Daily_Rainfall'
-                 ,'Weather_Temperature_Celsius','Active_Power']
+       'maintenance_endm', 'maintenance_endh','Global_Horizontal_Radiation_y',
+                 'Weather_Relative_Humidity_y','Weather_Daily_Rainfall_y'
+                 ,'Weather_Temperature_Celsius_y','Active_Power']
+    print('columns are: ',df.columns)
+    def prepare_df_for_testing(df, cols_to_use):
+        for col in cols_to_use:
+            # Check if the column exists in the DataFrame, if not, add it with a default value of 0
+            if col not in df.columns:
+                print('col not exist:',col)
+                df[col] = 1
+        return df
+    df=prepare_df_for_testing(df, cols_to_use)
+    # df['Active_Power']=df['Active_Power']*1000
+    # df['rating']=df['rating']*1000
+    # df['Active_Power']=df['Active_Power']/df['area']
+    # df['rating']=df['rating']/df['area']
+
+
+
+    # df['Time'] = pd.to_datetime(df['Timestamp'], format='%Y-%m-%d %H:%M:%S')
+    # df['Day']=df['Time'].dt.day
+    # df['Month']=df['Time'].dt.month
+    # df['Hour']=df['Time'].dt.hour
+    # df['Minute']=df['Time'].dt.minute
+    # df['Year']=df['Time'].dt.year
+    # cols_to_use = pd.Index(columns)
+    print('mean power is: ',df['Active_Power'].mean)
     print('make_test_sequences')
-    X_test,y_test=combin_seq(df,cols_to_use,1,'5m')
+    X_test,y_test=combin_seq(df,cols_to_use,1,'5m','test')
     print('sequences of test are built')
     zero_seq=[]
     fzero_seq=[]
@@ -733,7 +792,7 @@ def model_predict():
     X_test=np.delete(X_test, L_test, axis=0)
     y_test=np.delete(y_test, L_test, axis=0)
    
-    print("X_tes and y_test shapes*******************")
+    print("X_testtttt and y_test shapes*******************")
     print(X_test.shape)
     print(y_test.shape)
     a= np.zeros(X_test.shape[2])
@@ -745,34 +804,56 @@ def model_predict():
             count=count+1
     X_test=np.delete(X_test, L_test, axis=0)
     y_test=np.delete(y_test, L_test, axis=0)
+    print("X_testtttt and y_test shapes*******************")
+    print(X_test.shape)
+    print(y_test.shape)
+    print('test_data_shap: ',X_test.shape)
+    print('the first obs is: ',X_test[0])
     file_path_x = os.path.join(direct_path, 'X_test_HD_1.npy')
     np.save(file_path_x, X_test)
     file_path_y = os.path.join(direct_path, 'y_test_HD_1.npy')
     np.save(file_path_y, y_test)
     print('number of zeros in test are: ',count)
+    print('test_data_shap: ')
+    print('test_data_shap: ',X_test.shape)
             # np.save('../SeqDB/X_test_HD_'+str(n),X_test)
-    processed_files_collection.delete_many({})
+    files_collection.delete_many({})
    
 
-    save_to_mongo(df, 'processed_data')
+    save_to_mongo(df, 'files')
        
     return jsonify({'message': 'Model trained'}), 200
    
 @bp.route('/model/score')
 def get_model_score():
+    reset_random_seeds()
     print('mode_de_pred from score: ',mode_de_pred)
+    def prepare_df_for_testing(df, cols_to_use):
+        for col in cols_to_use:
+            # Check if the column exists in the DataFrame, if not, add it with a default value of 0
+            if col not in df.columns:
+                df[col] = 1
+        return df
     if mode_de_pred=='test':
         print('this is test mode from score')
         model=load_model_from_file_with_name(model_name)
-        cursor=processed_files_collection.find({}, {'_id': 0})
+        cursor=files_collection.find({}, {'_id': 0})
         df = pd.DataFrame(list(cursor))
         cols=['Year','Month','Day','Hour','Minute','version','technology','year_of_installation','rating',
+                 'azimuth', 'tilt','track','roof','maintenance_startm', 'maintenance_starth',
+       'maintenance_endm', 'maintenance_endh','Global_Horizontal_Radiation_y',
+                 'Weather_Relative_Humidity_y','Weather_Daily_Rainfall_y'
+                 ,'Weather_Temperature_Celsius_y','Active_Power']
+        cols1=['Month','Day','Hour','Minute','technology','year_of_installation','rating',
                  'azimuth', 'tilt','track','roof','maintenance_startm', 'maintenance_starth',
        'maintenance_endm', 'maintenance_endh','Global_Horizontal_Radiation',
                  'Weather_Relative_Humidity','Weather_Daily_Rainfall'
                  ,'Weather_Temperature_Celsius','Active_Power']
+        df=prepare_df_for_testing(df, cols)         
         df=df[cols]
         print('the mode was test')
+        print('the rating is: ',df['rating'].unique())
+        print('the mean power is: ',df['Active_Power'].mean())
 
     else:
         print('this is not test mode')
@@ -784,26 +865,34 @@ def get_model_score():
     print('shape of xtest,: ',len(X_test))
     num_columns = len(df.columns)-1
     print('columns for a array: ', num_columns)
+    a= np.zeros(X_test.shape[2])
+    L_test=[]
+    count=0
+    for w in range(len(y_test)):
+        if((np.array_equal(X_test[w][1], a))&(((len(X_test)-count))>(df.shape[0]))):
+            L_test.append(w)
+            count=count+1
+    X_test=np.delete(X_test, L_test, axis=0)
+    print('zeros n test deleted, number is: ',count)
+    print('shape of test after deleting zeros',X_test.shape)
 # Create an array filled with zeros, with the length equal to the number of columns
-    
-        
-    
-
-
     if mode_de_pred=='test':
         predictions = model(tf.constant(X_test))
+        print('model_predicted_data')
         predictions = {key: value.numpy().tolist() for key, value in predictions.items()}
         print('predictions len is: ',len(predictions['dense_8']))
         #print(predictions['dense_8'])
         predictions1=predictions['dense_8']
-        print('predictions are: ',predictions1)
+        
         predictions=np.array(predictions1)
         #flattened_predictions = [item[0] for item in predictions]
         #predictions=flattened_predictions
     else:
         predictions = model.predict(X_test)
-    print('df shape: ',df.shape,'predictions')
+    
+    print('df shape: ',df.shape,'predictions',len(predictions))
     df['Active_Power_pred']=predictions  
+    # df['Active_Power_pred']=df['Active_Power_pred']/1000 
     if  reso == '5m':
         if horiz == '15m':
             df=encode_15_mn(df)
@@ -866,8 +955,6 @@ def get_model_score():
     df['Timestamp'] = pd.to_datetime(df[['Year', 'Month', 'Day', 'Hour', 'Minute']])
     df['Timestamp'] = df['Timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
     test_predicted_files_collection.delete_many({})
-   
-
     save_to_mongo(df, 'test_predicted_data')
 
     nan_counts = df.isna().sum()
@@ -878,7 +965,7 @@ def get_model_score():
     print("Rows with NaN values:\n", nan_rows)
     # Calculate RMSE
     rmse = np.sqrt(mean_squared_error(df["Active_Power"], df["Active_Power_pred"]))
-
+    
     # Calculate NRMSE
     nrmse = rmse*100/df["Active_Power"].mean()
 
@@ -887,6 +974,7 @@ def get_model_score():
 
     # Calculate MAE
     mae = mean_absolute_error(df["Active_Power"], df["Active_Power_pred"])
+    print('MAE is ...........: ',mae)
 
     # Calculate NMAE
     nmae = mae*100/df["Active_Power"].mean()
@@ -894,7 +982,7 @@ def get_model_score():
     # Calculate MAPE
     mape=mean_absolute_percentage_error(df["Active_Power"], df["Active_Power_pred"])
     
-    return jsonify({'MAE': mae, 'NMAE': nmae, 'RMSE': rmse, 'NRMSE': nrmse, 'MAPE': mape})
+    return jsonify({'MAE': mae, 'NMAE': nmae, 'RMSE': rmse,'MSE':mse,'NRMSE':nrmse})
 
 
 def encode_15_mn(data):
@@ -914,10 +1002,10 @@ def encode_15_mn(data):
     return data
 def load_test_data():
     if model_name== 'LSTM' or model_name== 'CNN':
-        X_test_path = '../SeqDB/X_test_HD_1.npy'
+        X_test_path = '../sq/X_test_HD_1.npy'
     else: 
-        X_test_path = '../SeqDB/X_test_HD_1.csv'
-    y_test_path = '../SeqDB/y_test_HD_1.npy'
+        X_test_path = '../sq/X_test_HD_1.csv'
+    y_test_path = '../sq/y_test_HD_1.npy'
     
     if os.path.exists(X_test_path) and os.path.exists(y_test_path):
         if model_name== 'LSTM' or model_name== 'CNN':

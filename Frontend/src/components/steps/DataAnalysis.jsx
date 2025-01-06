@@ -110,13 +110,14 @@ export default function VisualizeStatistics() {
     const introText = 'Exploratory Data Analysis (EDA) is an approach to analyzing data sets to summarize their main characteristics, often with visual methods. It helps in understanding the data\'s underlying structure, identifying patterns, detecting anomalies, and formulating hypotheses for further investigation.';
     pdf.text(introText, 12, 40, { align: 'justify', maxWidth: pdf.internal.pageSize.getWidth() - 30 });
 
-    let startY = 70; // Initial startY position for components
+    let startY = 60; // Initial startY position for components
     console.log('the begining: ',startY)
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 20;
+    const margin = 10;
 
     for (let component of selectedComponents) {
-        
+     
+        console.log('component: ')
         // Get component description based on component ID
         let componentMarkup = '';
         let componentToRender = '';
@@ -158,6 +159,7 @@ export default function VisualizeStatistics() {
                 console.log(component)
                 break;
             case 'FeatureTypeTable':
+              console.log('ftt component: ')
                 ttl='Features Type'
                 description = 'This table categorizes each column based on data type, distinguishing between floating-point numbers (float), integers (int), and categorical variables (object). This classification helps in understanding the nature of each dataset attribute.';
                 componentMarkup = component;
@@ -197,20 +199,30 @@ export default function VisualizeStatistics() {
         await new Promise(resolve => setTimeout(resolve, 1000)); // Ensure rendering completes
 
         
-
+        console.log('hi: ')
         const input = document.getElementById(componentToRender.props.id);
         //const input = document.getElementById(component);
         //document.body.appendChild(componentMarkup); // Ensure it's added to the document
-
+         
   // Wait for component to be fully rendered
-        //await new Promise(resolve => setTimeout(resolve, 1000));
-        const canvas = await html2canvas(input);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('component is rendered: ')
+        const canvas = await new Promise(resolve => {
+          setTimeout(() => {
+              html2canvas(input, {
+                  scale: 3,
+                  logging: false,
+              }).then(resolve);
+          }, 1000);  // Add a timeout/delay before starting the rendering
+      });
+        console.log('canvas is made: ')
         pdf.setTextColor(100, 149, 237);
+        console.log('ccolor is set: ')
         // Add title with larger font size and centered
         pdf.setFontSize(12);
         startY += 5
         pdf.text(ttl, 12,startY);
-        startY += 10
+        startY += 8
         if (startY >= pageHeight - (margin+20)) { // Adjust the threshold based on page height
           pdf.addPage(); // Add a new page
           startY = margin; // Reset startY for the new page
@@ -230,6 +242,7 @@ export default function VisualizeStatistics() {
       }
         console.log('description added , startY: ',startY)
         // Add component screenshot as image
+        console.log('making image: ')
         const imgData = canvas.toDataURL('image/png');
         const imgWidth = canvas.width;
         const imgHeight = canvas.height;
@@ -238,7 +251,7 @@ export default function VisualizeStatistics() {
         const maxHeight = pdf.internal.pageSize.getHeight() - margin * 2;
         let adjustedWidth = maxWidth;
         let adjustedHeight = maxWidth / ratio;
-        
+        console.log('image_made: ')
         if (adjustedHeight > maxHeight) {
             adjustedHeight = maxHeight;
             adjustedWidth = maxHeight * ratio;
@@ -248,6 +261,7 @@ export default function VisualizeStatistics() {
           startY = margin; // Reset startY for the new page
           console.log('New page added ',startY)
       }
+      console.log('adding image: ')
         pdf.addImage(imgData, 'PNG', 15, startY + 10,adjustedWidth, adjustedHeight); // Adjust position and dimensions as needed
         console.log('image added , startY: ',startY)
         startY += adjustedHeight + 20; // Increase startY for the next component
@@ -389,7 +403,7 @@ export default function VisualizeStatistics() {
         </div>
       </ComponentWithCheckbox>
 
-      <ComponentWithCheckbox
+      {/* <ComponentWithCheckbox
         title="Add to the Report"
         onCheckboxChange={() => handleCheckboxChange('MissingRowsTable')}
         checked={selectedComponents.includes('MissingRowsTable')}
@@ -397,7 +411,7 @@ export default function VisualizeStatistics() {
         <div id="MissingRowsTable" className="col-span-1">
           <MissingRowsTable id="MissingRowsTable" />
         </div>
-      </ComponentWithCheckbox>
+      </ComponentWithCheckbox> */}
       <ComponentWithCheckbox
         title="Add to the Report"
         onCheckboxChange={() => handleCheckboxChange('NaNValues')}
@@ -455,17 +469,17 @@ export default function VisualizeStatistics() {
 
 
 
-<div style={{ position: 'absolute' ,left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none'}}>
+<div style={{ position: 'absolute', left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none' }}>
 <div id="FeatureTypeTablePDF" className="col-span-1" >
  <FeatureTypeTablePDF  id="FeatureTypeTablePDF" />
 </div>
 </div>
 
-<div style={{ position: 'absolute', left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none' }}>
+{/* <div style={{ position: 'absolute', left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none' }}>
 <div id="MissingRowsTablePDF" className="col-span-1" >
  <MissingRowsTablePDF id="MissingRowsTablePDF" />
 </div>
-</div>
+</div> */}
 
 
 <div style={{ position: 'absolute', left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none' }}>
@@ -495,11 +509,11 @@ export default function VisualizeStatistics() {
 </div>
 </div>
 
-<div style={{ position: 'absolute' ,left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none'}}>
+{/* <div style={{ position: 'absolute' ,left: '-9999px', top: '0', opacity: '0', pointerEvents: 'none'}}>
 <div id="OutliersContainerPDF" className="col-span-1" >
  <OutliersContainerPDF id="OutliersContainerPDF"/>
 </div>
-</div>
+</div> */}
 
 </div>
   );
